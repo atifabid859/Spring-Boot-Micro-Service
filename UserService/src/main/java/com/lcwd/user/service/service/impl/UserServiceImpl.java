@@ -4,6 +4,7 @@ import com.lcwd.user.service.entities.Hotel;
 import com.lcwd.user.service.entities.Rating;
 import com.lcwd.user.service.entities.User;
 import com.lcwd.user.service.exception.ResourceNotFoundException;
+import com.lcwd.user.service.external.services.HotelService;
 import com.lcwd.user.service.repository.UserRepository;
 import com.lcwd.user.service.service.UserService;
 import org.slf4j.Logger;
@@ -28,6 +29,10 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private RestTemplate restTemplate;
+
+    @Autowired
+    private HotelService hotelService;
+
     @Override
     public User saveUser(User user) {
         //generate unique userid
@@ -41,13 +46,13 @@ public class UserServiceImpl implements UserService {
         return userRepository.findAll();
     }
 
-    @Override
+    /*@Override
     public User getUserId(String userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User with given id is not found on server: " + userId));
 
         // Fetch ratings for the user using ParameterizedTypeReference
-        ResponseEntity<List<Rating>> responseEntity = restTemplate.exchange("http://localhost:8083/ratings/users/" + user.getUserId(),HttpMethod.GET,null,new ParameterizedTypeReference<List<Rating>>() {}
+        ResponseEntity<List<Rating>> responseEntity = restTemplate.exchange("http://RATING-MS/ratings/users/" + user.getUserId(),HttpMethod.GET,null,new ParameterizedTypeReference<List<Rating>>() {}
         );
 
         List<Rating> ratingOfUser = responseEntity.getBody();
@@ -58,7 +63,7 @@ public class UserServiceImpl implements UserService {
         }
 
         List<Rating> ratingLists = ratingOfUser.stream().map(rating -> {
-            ResponseEntity<Hotel> forEntity = restTemplate.getForEntity("http://localhost:8082/hotels/" + rating.getHotelId(), Hotel.class);
+            ResponseEntity<Hotel> forEntity = restTemplate.getForEntity("http://HOTEL-MS/hotels/" + rating.getHotelId(), Hotel.class);
 
             // Check if the response is successful
             if (forEntity.getStatusCode().is2xxSuccessful()) {
@@ -76,7 +81,34 @@ public class UserServiceImpl implements UserService {
         user.setRatings(ratingLists);
 
         return user;
-    }
+    }*/
 
+    @Override
+    public User getUserId(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User with given id is not found on server: " + userId));
+
+        // Fetch ratings for the user using ParameterizedTypeReference
+        ResponseEntity<List<Rating>> responseEntity = restTemplate.exchange("http://RATING-MS/ratings/users/" + user.getUserId(),HttpMethod.GET,null,new ParameterizedTypeReference<List<Rating>>() {}
+        );
+
+        List<Rating> ratingOfUser = responseEntity.getBody();
+
+        // Handle potential null ratings
+        if (ratingOfUser == null) {
+            ratingOfUser = new ArrayList<>();
+        }
+
+        List<Rating> ratingLists = ratingOfUser.stream().map(rating -> {
+        Hotel hotel = hotelService.getHotel(rating.getHotelId());
+        rating.setHotel(hotel);
+            return rating;
+        }).collect(Collectors.toList());
+
+        logger.info("User ratings: {}", ratingLists);
+        user.setRatings(ratingLists);
+
+        return user;
+    }
 
 }
